@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPE · Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script acsrc="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#07090f;--s1:#0e1117;--s2:#141820;--s3:#1a1f2a;--s4:#1f2535;
+  --border:#1f2535;--border2:#2a3347;
+  --text:#dde3f0;--muted:#5a6480;--muted2:#3d4660;
+  --blue:#4d9fff;--blue-d:rgba(77,159,255,.1);
+  --green:#3ecf72;--green-d:rgba(62,207,114,.1);
+  --orange:#f0a840;--orange-d:rgba(240,168,64,.1);
+  --red:#f05a5a;--red-d:rgba(240,90,90,.1);
+  --purple:#9d7fea;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+ 
+.nav{background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 28px;position:sticky;top:0;z-index:300;gap:0;}
+.logo{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.15em;color:var(--text);padding:18px 0;margin-right:32px;}
+.logo em{color:var(--blue);font-style:normal;}
+.nav-tabs{display:flex;flex:1;}
+.ntab{padding:18px 20px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;white-space:nowrap;}
+.ntab:hover{color:var(--text);}
+.ntab.on{color:var(--blue);border-bottom-color:var(--blue);}
+.nav-end{display:flex;align-items:center;gap:9px;margin-left:auto;}
+.chip{background:var(--s3);border:1px solid var(--border2);border-radius:20px;padding:4px 11px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);}
+.chip em{color:var(--green);font-style:normal;font-weight:700;}
+.chip.warn em{color:var(--orange);}
+.btn{padding:7px 15px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;border:none;font-weight:600;transition:all .15s;}
+.btn-p{background:var(--blue);color:#fff;}
+.btn-p:hover{background:#6ab0ff;}
+.btn-p:disabled{background:var(--muted2);cursor:not-allowed;color:var(--muted);}
+.btn-g{background:transparent;color:var(--muted);border:1px solid var(--border2);}
+.btn-g:hover{color:var(--text);border-color:var(--muted);}
+.btn-d{background:var(--red-d);color:var(--red);border:1px solid rgba(240,90,90,.2);}
+.btn-d:hover{background:rgba(240,90,90,.18);}
+.btn-sm{padding:5px 10px;font-size:9px;}
+.btn-xs{padding:3px 8px;font-size:9px;}
+ 
+.page{display:none;padding:26px 28px;min-height:calc(100vh - 54px);}
+.page.on{display:block;}
+ 
+/* UPLOAD */
+.process-bar{background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:20px;}
+.proc-status{flex:1;}
+.proc-title{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;margin-bottom:3px;}
+.proc-desc{font-size:11px;color:var(--muted);}
+.pbar-wrap{margin-top:8px;display:none;}
+.pbar-bg{height:4px;background:var(--s3);border-radius:2px;overflow:hidden;}
+.pbar-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .3s;}
+ 
+.upload-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
+.ucard{background:var(--s1);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s;}
+.ucard.loaded{border-color:rgba(62,207,114,.3);}
+.ucard.missing{border-color:rgba(240,90,90,.25);}
+.ucard-hd{padding:10px 13px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;}
+.ucard-icon{font-size:18px;margin-top:1px;}
+.ucard-name{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;flex:1;line-height:1.4;}
+.ubadge{font-size:9px;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+.ubadge-req{background:var(--red-d);color:var(--red);border:1px solid rgba(240,90,90,.2);}
+.ubadge-ok{background:var(--green-d);color:var(--green);border:1px solid rgba(62,207,114,.2);}
+.ucard-body{padding:12px 13px;}
+.dropzone{border:1.5px dashed var(--border2);border-radius:7px;padding:18px 10px;text-align:center;cursor:pointer;transition:all .2s;}
+.dropzone:hover,.dropzone.drag{border-color:var(--blue);background:var(--blue-d);}
+.dropzone p{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.dropzone input{display:none;}
+.loaded-block{font-size:10px;color:var(--muted);line-height:1.7;}
+.loaded-block .fname{color:var(--green);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;word-break:break-all;display:block;margin-bottom:4px;}
+.tag-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;margin-bottom:8px;}
+.tag{background:var(--s3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--blue);}
+ 
+.ibox{background:var(--blue-d);border:1px solid rgba(77,159,255,.2);border-radius:7px;padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.7;}
+.ibox strong{color:var(--blue);}
+ 
+/* TABLE */
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+input.srch{background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:6px 11px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);outline:none;}
+input.srch:focus{border-color:var(--blue);}
+input.srch::placeholder{color:var(--muted2);}
+select.fsel{background:var(--s1);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text);outline:none;cursor:pointer;}
+select.fsel:focus{border-color:var(--blue);}
+ 
+.panel{background:var(--s1);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:18px;}
+.phd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.ptitle{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+ 
+.tbl-wrap{overflow-x:auto;max-height:600px;overflow-y:auto;}
+.tbl-wrap::-webkit-scrollbar{width:5px;height:5px;}
+.tbl-wrap::-webkit-scrollbar-track{background:var(--s2);}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+table.dt{width:100%;border-collapse:collapse;}
+table.dt thead{position:sticky;top:0;z-index:10;}
+table.dt thead tr{background:var(--s2);}
+table.dt th{padding:8px 12px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
+table.dt th:hover{color:var(--blue);}
+table.dt td{padding:7px 12px;border-bottom:1px solid rgba(31,37,53,.6);font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap;}
+table.dt tbody tr:hover{background:rgba(77,159,255,.03);}
+table.dt tfoot td{background:var(--s2);font-weight:700;border-top:1px solid var(--border2);padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:10px;}
+.num{text-align:right;}
+.bdg{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-family:'JetBrains Mono',monospace;}
+.b-blue{background:var(--blue-d);color:var(--blue);}
+.b-gray{background:rgba(90,100,128,.1);color:var(--muted);}
+.b-green{background:var(--green-d);color:var(--green);}
+.b-orange{background:var(--orange-d);color:var(--orange);}
+.b-red{background:var(--red-d);color:var(--red);}
+ 
+/* DASHBOARD */
+.kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px;}
+.kpi{background:var(--s1);border:1px solid var(--border);border-radius:9px;padding:16px 18px;position:relative;overflow:hidden;}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.k-r::after{background:var(--blue);}
+.k-p::after{background:var(--green);}
+.k-e::after{background:var(--orange);}
+.k-pend::after{background:var(--red);}
+.k-t::after{background:var(--purple);}
+.klbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.kval{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;line-height:1;margin-bottom:3px;}
+.k-r .kval{color:var(--blue);}
+.k-p .kval{color:var(--green);}
+.k-e .kval{color:var(--orange);}
+.k-pend .kval{color:var(--red);}
+.k-t .kval{color:var(--purple);}
+.ksub{font-size:10px;color:var(--muted);}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}
+.chart-box{position:relative;height:210px;}
+.pill{padding:4px 11px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:9px;border:1px solid var(--border2);cursor:pointer;color:var(--muted);transition:all .15s;}
+.pill:hover{border-color:var(--blue);color:var(--blue);}
+.pill.on{background:var(--blue-d);border-color:var(--blue);color:var(--blue);}
+ 
+.toasts{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:7px;z-index:999;}
+.toast{background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:11px 15px;font-size:11px;display:flex;align-items:center;gap:9px;animation:tsin .3s ease;min-width:250px;font-family:'JetBrains Mono',monospace;}
+.toast.ok{border-left:3px solid var(--green);}
+.toast.err{border-left:3px solid var(--red);}
+.toast.info{border-left:3px solid var(--blue);}
+@keyframes tsin{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+@keyframes fup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fup{animation:fup .35s ease forwards;}
+</style>
+</head>
+<body>
+ 
+<div class="nav">
+  <div class="logo">RPE · <em>Dashboard</em></div>
+  <div class="nav-tabs">
+    <div class="ntab on" onclick="go('upload')">⬆ Upload</div>
+    <div class="ntab" onclick="go('consolidado')">📋 Consolidado</div>
+    <div class="ntab" onclick="go('dashboard')">📊 Dashboard</div>
+  </div>
+  <div class="nav-end">
+    <div class="chip warn">Pendentes: <em id="cnt-pend">5</em></div>
+    <div class="chip">Linhas: <em id="cnt-rows">—</em></div>
+    <button class="btn btn-g btn-sm" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn btn-p btn-sm" onclick="exportXLSX()">⬇ Excel</button>
+    <button class="btn btn-d btn-sm" onclick="clearAll()">🗑 Reset</button>
+  </div>
+</div>
+ 
+<!-- ══ UPLOAD ══ -->
+<div class="page on" id="page-upload">
+  <div class="process-bar fup">
+    <div class="proc-status">
+      <div class="proc-title" id="proc-title">Aguardando arquivos</div>
+      <div class="proc-desc" id="proc-desc">Carregue os 5 relatórios para gerar o consolidado</div>
+      <div class="pbar-wrap" id="pbar-wrap"><div class="pbar-bg"><div class="pbar-fill" id="pbar" style="width:0%"></div></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end">
+      <button class="btn btn-p" id="proc-btn" onclick="processAll()" disabled>⚡ Processar e Consolidar</button>
+      <button class="btn btn-g btn-sm" onclick="clearHist()" id="hist-btn" style="display:none">🗑 Limpar Histórico (<span id="hist-dates">0</span> datas)</button>
+    </div>
+  </div>
+  <div class="upload-grid fup" id="upload-grid"></div>
+  <div class="ibox fup" style="max-width:960px">
+    <strong>Cruzamento:</strong> Os campos ITEM e ITEM_ID são truncados para os <strong>6 primeiros dígitos</strong> e cruzados com os <strong>30 artigos fixos</strong>.
+    Pendência enriquece com status · Estoque enriquece com classe/setor · Operação gera Vol Programado · Recebimento gera Vol Recebido · Expedição gera Vol Expedido.
+  </div>
+</div>
+ 
+<!-- ══ CONSOLIDADO ══ -->
+<div class="page" id="page-consolidado">
+  <div class="fbar">
+    <input class="srch" id="con-srch" placeholder="Artigo / Descrição..." oninput="renderCon()" style="width:210px">
+    <select class="fsel" id="con-data" onchange="renderCon()"><option value="">Todas as datas</option></select>
+    <select class="fsel" id="con-setor" onchange="renderCon()"><option value="">Todos setores</option></select>
+    <select class="fsel" id="con-status" onchange="renderCon()"><option value="">Todos status</option></select>
+    <span id="con-cnt" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)"></span>
+    <div style="margin-left:auto;display:flex;gap:7px">
+      <button class="btn btn-g btn-sm" onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn btn-p btn-sm" onclick="exportXLSX()">⬇ Excel</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="phd">
+      <span class="ptitle">Relatório Consolidado — estrutura exata do relatório</span>
+      <span id="last-upd" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted)"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr>
+          <th onclick="srtCon(0)">Artigo Atual ↕</th>
+          <th onclick="srtCon(1)">Descrição ↕</th>
+          <th onclick="srtCon(2)">Data ↕</th>
+          <th class="num" onclick="srtCon(3)">Vol Recebido ↕</th>
+          <th class="num" onclick="srtCon(4)">Vol Programado ↕</th>
+          <th class="num" onclick="srtCon(5)">Vol Expedido ↕</th>
+          <th class="num" onclick="srtCon(6)">Vol Pendência ↕</th>
+          <th onclick="srtCon(7)">Status ↕</th>
+          <th onclick="srtCon(8)">Setor Estoque ↕</th>
+        </tr></thead>
+        <tbody id="con-tbody"></tbody>
+        <tfoot><tr id="con-tfoot"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+ 
+<!-- ══ DASHBOARD ══ -->
+<div class="page" id="page-dashboard">
+  <div class="kpi-strip">
+    <div class="kpi k-r"><div class="klbl">Vol. Recebido</div><div class="kval" id="kv-r">—</div><div class="ksub" id="ks-r">—</div></div>
+    <div class="kpi k-p"><div class="klbl">Vol. Programado</div><div class="kval" id="kv-p">—</div><div class="ksub" id="ks-p">—</div></div>
+    <div class="kpi k-e"><div class="klbl">Vol. Expedido</div><div class="kval" id="kv-e">—</div><div class="ksub" id="ks-e">—</div></div>
+    <div class="kpi k-pend"><div class="klbl">Vol. Pendência</div><div class="kval" id="kv-pend">—</div><div class="ksub" id="ks-pend">—</div></div>
+    <div class="kpi k-t"><div class="klbl">Taxa Expedição</div><div class="kval" id="kv-t">—</div><div class="ksub" id="ks-t">—</div></div>
+  </div>
+  <div class="row2">
+    <div class="panel" style="margin-bottom:0">
+      <div class="phd">
+        <span class="ptitle">Volumes por Data</span>
+        <div style="display:flex;gap:5px">
+          <span class="pill on" data-ct="bar" onclick="setCT(this,'bar')">Barras</span>
+          <span class="pill" data-ct="line" onclick="setCT(this,'line')">Linha</span>
+        </div>
+      </div>
+      <div style="padding:14px 16px"><div class="chart-box"><canvas id="cVol"></canvas></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:0">
+      <div class="phd"><span class="ptitle">Recebido vs Expedido</span></div>
+      <div style="padding:14px 16px"><div class="chart-box"><canvas id="cTend"></canvas></div></div>
+    </div>
+  </div>
+  <br>
+  <div class="panel">
+    <div class="phd">
+      <span class="ptitle">Artigos — Totais Consolidados</span>
+      <select class="fsel" id="dash-data" onchange="renderDash()" style="font-size:9px;padding:4px 8px"><option value="">Todas as datas</option></select>
+    </div>
+    <div class="tbl-wrap" style="max-height:360px">
+      <table class="dt">
+        <thead><tr>
+          <th>Artigo Atual</th><th>Descrição</th>
+          <th class="num">Vol Recebido</th>
+          <th class="num">Vol Programado</th>
+          <th class="num">Vol Expedido</th>
+          <th class="num">Vol Pendência</th>
+          <th>Status</th><th>Setor Estoque</th>
+        </tr></thead>
+        <tbody id="dash-tbody"></tbody>
+        <tfoot><tr id="dash-tfoot"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+ 
+<div class="toasts" id="toasts"></div>
+ 
+<script>
+// ══════════════════════════════════════════════════════
+// 30 ARTIGOS FIXOS
+// ══════════════════════════════════════════════════════
+const ARTIGOS = {
+  '866791':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM G6 LISO BRANCO',
+  '866794':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM M6 LISO PRETO',
+  '866789':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM P3 LISO BRANCO',
+  '866790':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM M6 LISO BRANCO',
+  '872472':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO M LISO BRANCO',
+  '866795':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM G6 LISO PRETO',
+  '866793':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM P3 LISO PRETO',
+  '872471':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO P LISO BRANCO',
+  '397745':'CALCA CF MSA YEAPP LEGGING LISA POP LISO MARINHO',
+  '397743':'CALCA CF MSA YEAPP LEGGING LISA POP LISO PRETO',
+  '681660':'3 CALCINHAS APP P/GG TRS MFB PTO/BCO/CHO REF.51819 - DELCOTTON',
+  '499751':'CALCINHA TRS SLO DELCOTTON G ESTAMPADO REF 845999 AMARELO',
+  '866796':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM GG6 LISO PRETO',
+  '872470':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO GG LISO PRETO',
+  '904395':'3 CALCINHAS APP TANGA TAM M TRS COTTON LISO PRETO/MESCLA/ROSA REF.52343 - DELCOTTON',
+  '414879':'3 CALCINHAS APP BIQUINI TAM M TRS COTTON LISO MESCLA/BRANCO/ROSA REF.51341 G8 - DELCOTTON',
+  '810868':'CALCINHA TRS SLO DEL RIO GG ESTAMPADO REF 51509 K200 POA ROSA/MARROM',
+  '985992':'BERMUDA TRS SLO DELCOTTON GG LISO REF 880233 BEGE',
+  '866792':'CAMISETA MANGA CURTA ESS MSA ID CASUAL FIO PENTEADO PACK TAM GG6 LISO BRANCO',
+  '872467':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO P LISO PRETO',
+  '872468':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO M LISO PRETO',
+  '872469':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO G LISO PRETO',
+  '904394':'3 CALCINHAS APP TANGA TAM P/GG TRS COTTON LISO PRETO/MESCLA/ROSA REF.52343 - DELCOTTON',
+  '498699':'CALCINHA TRS SLO DELCOTTON G ESTAMPADO REF 779727 BRANCO',
+  '508307':'CALCA INFA MSA YEAPP LEGGING MALHA TAM 10 LISO MARINHO',
+  '508781':'CALCA INFA MSA YEAPP LEGGING MALHA TAM 10 LISO PRETO',
+  '508780':'CALCA INFA MSA YEAPP LEGGING MALHA TAM 8 LISO PRETO',
+  '887844':'CALCA CF MSA YEAPP LEGGING LISA POP LISO ROSA PO',
+  '872474':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO GG LISO BRANCO',
+  '872473':'BLUSA MANGA CURTA CW MSA VIVA BASICO COTTON PENTEADO G LISO BRANCO',
+};
+ 
+// ══════════════════════════════════════════════════════
+// SLOTS CONFIG
+// ══════════════════════════════════════════════════════
+const SLOTS = [
+  { id:'recebimento', icon:'📥', name:'Indicador de\nRecebimento',  hint:'ITEM · REC_VOLUMES · DATA' },
+  { id:'expedicao',   icon:'📤', name:'Indicador de\nExpedição',    hint:'ITEM_ID · CAIXAS · DATA' },
+  { id:'operacao',    icon:'⚙️',  name:'Indicador de\nOperação',    hint:'ITEM_ID · VOLUMES · DATA_INI_EXPEDICAO' },
+  { id:'pendencia',   icon:'⏳', name:'Pendência de\nEmbarque',     hint:'ITEM · QTD_VOLUMES · STATUS' },
+  { id:'estoque',     icon:'🏷️', name:'Estoque por\nEndereço',      hint:'ITEM_ID · CLASSE' },
+];
+ 
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let RAW = {};
+// HIST: histórico acumulado indexado por data — { 'DD/MM': [rows...] }
+// Novas datas se somam; mesma data é substituída ao reprocessar
+let HIST = {};
+let conSort = { col:2, dir:1 };
+ 
+// Vista flat de todo o histórico
+function CON() {
+  return Object.values(HIST).flat()
+    .sort((a,b) => { const d=a.data.localeCompare(b.data); return d||a.artigo.localeCompare(b.artigo); });
+}
+let cVol = null, cTend = null, cType = 'bar';
+ 
+function save() {
+  try {
+    localStorage.setItem('rpe_raw', JSON.stringify(RAW));
+    localStorage.setItem('rpe_hist', JSON.stringify(HIST));
+  } catch(e) {}
+}
+function load() {
+  try {
+    const r = localStorage.getItem('rpe_raw'); if(r) RAW = JSON.parse(r);
+    const h = localStorage.getItem('rpe_hist'); if(h) HIST = JSON.parse(h);
+  } catch(e) {}
+}
+ 
+// ══════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════
+function go(p) {
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.ntab').forEach(e=>e.classList.remove('on'));
+  document.getElementById('page-'+p).classList.add('on');
+  document.querySelectorAll('.ntab')[{upload:0,consolidado:1,dashboard:2}[p]].classList.add('on');
+  if(p==='consolidado') renderCon();
+  if(p==='dashboard') renderDash();
+}
+ 
+// ══════════════════════════════════════════════════════
+// RENDER SLOTS
+// ══════════════════════════════════════════════════════
+function renderSlots() {
+  const grid = document.getElementById('upload-grid');
+  grid.innerHTML = '';
+  SLOTS.forEach((s, i) => {
+    const raw = RAW[s.id];
+    const div = document.createElement('div');
+    div.className = 'ucard fup' + (raw ? ' loaded' : ' missing');
+    div.style.animationDelay = (i * .06) + 's';
+ 
+    const badge = raw
+      ? '<span class="ubadge ubadge-ok">✓ OK</span>'
+      : '<span class="ubadge ubadge-req">Obrigatório</span>';
+ 
+    let body = '';
+    if (raw) {
+      const matched = countMatch(s, raw.data);
+      body = `<div class="loaded-block">
+        <span class="fname">${raw.filename}</span>
+        ${raw.data.length} linhas · ${raw.cols.length} colunas
+        <div class="tag-row"><span class="tag">${matched} artigos encontrados</span></div>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-g btn-xs" onclick="replaceSlot('${s.id}')">↺ Trocar</button>
+          <button class="btn btn-d btn-xs" onclick="rmSlot('${s.id}')">✕</button>
+        </div>
+      </div>`;
+    } else {
+      body = `<div class="dropzone" id="dz-${s.id}"
+        ondragover="doDrag(event,'${s.id}',true)" ondragleave="doDrag(event,'${s.id}',false)" ondrop="doDrop(event,'${s.id}')">
+        <div style="font-size:24px">${s.icon}</div>
+        <p>${s.hint}</p>
+        <input type="file" id="fi-${s.id}" accept=".csv,.xlsx,.xls" onchange="handleFile(this.files[0],'${s.id}')">
+        <br>
+        <button class="btn btn-g btn-sm" style="margin-top:7px" onclick="document.getElementById('fi-${s.id}').click()">Selecionar</button>
+      </div>`;
+    }
+ 
+    div.innerHTML = `
+      <div class="ucard-hd">
+        <span class="ucard-icon">${s.icon}</span>
+        <span class="ucard-name">${s.name.replace('\n','<br>')}</span>
+        ${badge}
+      </div>
+      <div class="ucard-body">${body}</div>`;
+    grid.appendChild(div);
+  });
+ 
+  const missing = SLOTS.filter(s => !RAW[s.id]).length;
+  document.getElementById('cnt-pend').textContent = missing;
+  document.getElementById('proc-btn').disabled = missing > 0;
+  document.getElementById('proc-title').textContent = missing === 0 ? 'Pronto para processar!' : `Aguardando ${missing} arquivo(s)`;
+  document.getElementById('proc-desc').textContent = missing === 0 ? 'Todos os arquivos carregados. Clique em Processar.' : 'Carregue todos os 5 arquivos obrigatórios.';
+  const histDates = Object.keys(HIST).length;
+  document.getElementById('cnt-rows').textContent = CON().length || '—';
+  const hb = document.getElementById('hist-btn');
+  if (hb) { hb.style.display = histDates > 0 ? 'block' : 'none'; document.getElementById('hist-dates').textContent = histDates; }
+}
+ 
+function countMatch(slotDef, data) {
+  if (!data || !data.length) return 0;
+  const cols = Object.keys(data[0]);
+  const itemCol = findCol(cols, 'ITEM_ID') || findCol(cols, 'ITEM') || findCol(cols, 'item');
+  if (!itemCol) return 0;
+  return new Set(data.map(r => norm6(r[itemCol])).filter(c => ARTIGOS[c])).size;
+}
+ 
+// ══════════════════════════════════════════════════════
+// FILE HANDLING
+// ══════════════════════════════════════════════════════
+function doDrag(e, id, on) { e.preventDefault(); const el=document.getElementById('dz-'+id); if(el) el.classList.toggle('drag',on); }
+function doDrop(e, id) { e.preventDefault(); doDrag(e,id,false); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0],id); }
+function replaceSlot(id) { const i=document.createElement('input'); i.type='file'; i.accept='.csv,.xlsx,.xls'; i.onchange=()=>handleFile(i.files[0],id); i.click(); }
+function rmSlot(id) { delete RAW[id]; save(); renderSlots(); toast('Arquivo removido.','info'); }
+ 
+function handleFile(file, slotId) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, { header:true, skipEmptyLines:true, complete: r => store(slotId, file.name, r.data, r.meta.fields) });
+  } else if (['xlsx','xls'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, {type:'binary', cellDates:false});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {defval:'', raw:true});
+      store(slotId, file.name, data, data.length ? Object.keys(data[0]) : []);
+    };
+    reader.readAsBinaryString(file);
+  } else { toast('Formato não suportado. Use CSV ou XLSX.','err'); }
+}
+ 
+function store(slotId, filename, data, cols) {
+  RAW[slotId] = { filename, data, cols, at: new Date().toISOString() };
+  save(); renderSlots();
+  const def = SLOTS.find(s=>s.id===slotId);
+  toast(`${def.name.replace('\n',' ')} — ${countMatch(def, data)} artigos detectados.`, 'ok');
+}
+ 
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+// 6 primeiros dígitos numéricos
+function norm6(v) {
+  if (v == null) return '';
+  return String(v).replace(/\D/g, '').substring(0, 6);
+}
+ 
+// busca coluna case-insensitive
+function findCol(cols, target) {
+  if (!cols || !target) return null;
+  const t = target.toLowerCase().replace(/[_\s]/g,' ').trim();
+  return cols.find(c => c.toLowerCase().replace(/[_\s]/g,' ').trim() === t)
+    || cols.find(c => c.toLowerCase().replace(/[_\s]/g,' ').includes(t))
+    || cols.find(c => t.includes(c.toLowerCase().replace(/[_\s]/g,' ').trim()))
+    || null;
+}
+ 
+function parseNum(v) {
+  if (v == null || v === '') return 0;
+  const n = parseFloat(String(v).replace(/[^\d.\-]/g,''));
+  return isNaN(n) ? 0 : Math.round(n);
+}
+ 
+// Meses abreviados PT e EN
+const MONTHS_PT = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+const MONTHS_EN = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+ 
+// Converte serial Excel (número de dias desde 1900-01-00) para { d, m }
+function excelSerialToDate(serial) {
+  // Excel epoch: 1 = Jan 1 1900 (com bug do 1900 bissexto, ajuste -1)
+  const epoch = new Date(1899, 11, 30); // 30/12/1899
+  const d = new Date(epoch.getTime() + serial * 86400000);
+  return { d: d.getDate(), m: d.getMonth() + 1, y: d.getFullYear() };
+}
+ 
+function parseDate(v) {
+  if (v == null || String(v).trim() === '') return null;
+  const s = String(v).trim();
+ 
+  // ── 1. Serial numérico do Excel (ex: 46141)
+  if (/^\d{4,6}$/.test(s)) {
+    const n = parseInt(s);
+    if (n > 40000 && n < 60000) { // range razoável de datas Excel (2009-2064)
+      const { d, m } = excelSerialToDate(n);
+      return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`;
+    }
+  }
+ 
+  // ── 2. DD/MMM  ou  DD/MMM/YYYY  (27/abr, 27/abr/2026, 27/Apr)
+  const mAbr = s.match(/^(\d{1,2})\/([a-zA-Z]{3})/);
+  if (mAbr) {
+    const d = mAbr[1].padStart(2,'0');
+    const mon = mAbr[2].toLowerCase();
+    const mNum = MONTHS_PT[mon] || MONTHS_EN[mon];
+    if (mNum) return `${d}/${String(mNum).padStart(2,'0')}`;
+    return `${d}/${mAbr[2]}`; // fallback: mantém como está
+  }
+ 
+  // ── 3. DD/MM  ou  DD/MM/YYYY  (27/04, 27/04/2026)
+  const mDMY = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?$/);
+  if (mDMY) {
+    return `${mDMY[1].padStart(2,'0')}/${mDMY[2].padStart(2,'0')}`;
+  }
+ 
+  // ── 4. MM/DD/YYYY americano  (4/27/2026, 4/27)
+  // Heurística: se mês > 12 → DD/MM; se dia > 12 → MM/DD
+  const mMDY = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?$/);
+  if (mMDY) {
+    const a = parseInt(mMDY[1]), b = parseInt(mMDY[2]);
+    if (a > 12 && b <= 12) return `${mMDY[1].padStart(2,'0')}/${mMDY[2].padStart(2,'0')}`; // DD/MM
+    if (b > 12 && a <= 12) return `${mMDY[2].padStart(2,'0')}/${mMDY[1].padStart(2,'0')}`; // swap MM/DD→DD/MM
+    return `${mMDY[1].padStart(2,'0')}/${mMDY[2].padStart(2,'0')}`; // ambíguo: mantém ordem
+  }
+ 
+  // ── 5. YYYY-MM-DD  (2026-04-27)
+  const mISO = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (mISO) return `${mISO[3]}/${mISO[2]}`;
+ 
+  // ── 6. DD-MM-YYYY  ou  MM-DD-YYYY
+  const mDash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+  if (mDash) {
+    const a = parseInt(mDash[1]), b = parseInt(mDash[2]);
+    if (a > 12) return `${mDash[1].padStart(2,'0')}/${mDash[2].padStart(2,'0')}`; // DD-MM
+    return `${mDash[1].padStart(2,'0')}/${mDash[2].padStart(2,'0')}`;
+  }
+ 
+  // ── 7. Texto com mês por extenso PT  (27 de abril, abril 27)
+  const mExt = s.match(/(\d{1,2})\s+de\s+([a-zA-Záéíóúã]+)/i);
+  if (mExt) {
+    const d = mExt[1].padStart(2,'0');
+    const mon = mExt[2].substring(0,3).toLowerCase();
+    const mNum = MONTHS_PT[mon] || MONTHS_EN[mon];
+    if (mNum) return `${d}/${String(mNum).padStart(2,'0')}`;
+  }
+ 
+  return null; // não reconhecido → ignora
+}
+ 
+// ══════════════════════════════════════════════════════
+// PROCESS
+// ══════════════════════════════════════════════════════
+function processAll() {
+  const pw = document.getElementById('pbar-wrap');
+  pw.style.display = 'block';
+  setPbar(5);
+ 
+  try {
+    // ── 1. RECEBIMENTO → volRec per artigo|date
+    const mapRec = {}; // `art|date` → vol
+    const recRaw = RAW['recebimento'];
+    if (recRaw) {
+      const cols = recRaw.cols;
+      const cItem = findCol(cols,'ITEM') || findCol(cols,'ITEM_ID');
+      const cVol  = findCol(cols,'REC_VOLUMES') || findCol(cols,'VOLUMES') || findCol(cols,'VOL');
+      const cData = findCol(cols,'DATA') || findCol(cols,'DATE');
+      recRaw.data.forEach(r => {
+        const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
+        const date = parseDate(cData ? r[cData] : '') || '—';
+        const vol = parseNum(r[cVol]);
+        const k = `${art}|${date}`;
+        mapRec[k] = (mapRec[k]||0) + vol;
+      });
+    }
+    setPbar(22);
+ 
+    // ── 2. EXPEDIÇÃO → volExp per artigo|date
+    const mapExp = {};
+    const expRaw = RAW['expedicao'];
+    if (expRaw) {
+      const cols = expRaw.cols;
+      const cItem = findCol(cols,'ITEM_ID') || findCol(cols,'ITEM');
+      const cVol  = findCol(cols,'CAIXAS') || findCol(cols,'VOLUMES') || findCol(cols,'VOL');
+      const cData = findCol(cols,'DATA') || findCol(cols,'DATE');
+      expRaw.data.forEach(r => {
+        const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
+        const date = parseDate(cData ? r[cData] : '') || '—';
+        const vol = parseNum(r[cVol]);
+        const k = `${art}|${date}`;
+        mapExp[k] = (mapExp[k]||0) + vol;
+      });
+    }
+    setPbar(40);
+ 
+    // ── 3. OPERAÇÃO → volProg per artigo|date
+    const mapProg = {};
+    const opRaw = RAW['operacao'];
+    if (opRaw) {
+      const cols = opRaw.cols;
+      const cItem = findCol(cols,'ITEM_ID') || findCol(cols,'ITEM');
+      const cVol  = findCol(cols,'VOLUMES') || findCol(cols,'VOL');
+      // DATA_INI_EXPEDICAO prioritário, fallback DATA
+      const cData = findCol(cols,'DATA_INI_EXPEDICAO') || findCol(cols,'DATA') || findCol(cols,'DATE');
+      opRaw.data.forEach(r => {
+        const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
+        const date = (cData && r[cData]) ? (parseDate(r[cData]) || '—') : '—';
+        const vol = parseNum(r[cVol]);
+        const k = `${art}|${date}`;
+        mapProg[k] = (mapProg[k]||0) + vol;
+      });
+    }
+    setPbar(58);
+ 
+    // ── 4. PENDÊNCIA → volPend + status per artigo
+    const mapPend = {}; // art → { vol, status }
+    const pendRaw = RAW['pendencia'];
+    if (pendRaw) {
+      const cols = pendRaw.cols;
+      const cItem   = findCol(cols,'ITEM') || findCol(cols,'ITEM_ID');
+      const cVol    = findCol(cols,'QTD_VOLUMES') || findCol(cols,'VOLUMES') || findCol(cols,'QTD');
+      const cStatus = findCol(cols,'STATUS');
+      pendRaw.data.forEach(r => {
+        const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
+        const vol = parseNum(r[cVol]);
+        const status = cStatus ? String(r[cStatus]||'').trim() : '';
+        if (!mapPend[art]) mapPend[art] = { vol:0, status:'' };
+        mapPend[art].vol += vol;
+        if (status) mapPend[art].status = status;
+      });
+    }
+    setPbar(74);
+ 
+    // ── 5. ESTOQUE → classe per artigo
+    const mapClasse = {}; // art → classe
+    const estRaw = RAW['estoque'];
+    if (estRaw) {
+      const cols = estRaw.cols;
+      const cItem   = findCol(cols,'ITEM_ID') || findCol(cols,'ITEM');
+      const cClasse = findCol(cols,'CLASSE') || findCol(cols,'CLASS');
+      estRaw.data.forEach(r => {
+        const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
+        const cl = cClasse ? String(r[cClasse]||'').trim() : '';
+        if (cl) mapClasse[art] = cl;
+      });
+    }
+    setPbar(88);
+ 
+    // ── 6. COLETAR DATAS NOVAS (dos relatórios carregados agora)
+    const newDates = new Set();
+    [...Object.keys(mapRec),...Object.keys(mapExp),...Object.keys(mapProg)]
+      .forEach(k => { const d=k.split('|')[1]; if(d) newDates.add(d); });
+    if (!newDates.size) newDates.add('—');
+ 
+    // ── 7. BUILD ROWS para cada data nova — substitui só essas datas no HIST
+    //        Datas anteriores no HIST são preservadas intactas
+    newDates.forEach(date => {
+      const rows = [];
+      Object.keys(ARTIGOS).forEach(art => {
+        const k = `${art}|${date}`;
+        const volRec  = mapRec[k]  || 0;
+        const volProg = mapProg[k] || 0;
+        const volExp  = mapExp[k]  || 0;
+        const pend    = mapPend[art] || { vol:0, status:'—' };
+        const classe  = mapClasse[art] || '';
+        rows.push({
+          artigo:    art,
+          descricao: ARTIGOS[art],
+          data:      date,
+          volRec,
+          volProg,
+          volExp,
+          volPend:  pend.vol,
+          status:   pend.status || '—',
+          setor:    classe,
+        });
+      });
+      HIST[date] = rows; // substitui só essa data
+    });
+ 
+    save();
+    setPbar(100);
+ 
+    const allRows = CON();
+    const allHistDates = Object.keys(HIST).length;
+    document.getElementById('cnt-rows').textContent = allRows.length;
+    document.getElementById('last-upd').textContent = `Gerado: ${new Date().toLocaleString('pt-BR')}`;
+    populateFilters();
+ 
+    const isNew = [...newDates].filter(d => !Object.keys(HIST).includes(d) || true);
+    toast(`+${newDates.size} datas processadas · Histórico: ${allHistDates} datas · ${allRows.length} linhas totais`, 'ok');
+    setTimeout(() => { pw.style.display='none'; setPbar(0); go('consolidado'); }, 700);
+ 
+  } catch(err) {
+    console.error(err);
+    toast('Erro ao processar: ' + err.message, 'err');
+    document.getElementById('pbar-wrap').style.display='none';
+  }
+}
+ 
+function setPbar(v) { document.getElementById('pbar').style.width = v+'%'; }
+ 
+// ══════════════════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════════════════
+function populateFilters() {
+  const flat = CON(); const dates   = [...new Set(flat.map(r=>r.data))].sort();
+  const setores = [...new Set(flat.map(r=>r.setor).filter(Boolean))].sort();
+  const stats   = [...new Set(flat.map(r=>r.status).filter(s=>s&&s!=='—'))].sort();
+ 
+  ['con-data','dash-data'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel) return;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">Todas as datas</option>'+dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+    if(cur) sel.value=cur;
+  });
+  setFsel('con-setor', setores, 'Todos setores');
+  setFsel('con-status', stats, 'Todos status');
+}
+ 
+function setFsel(id, arr, placeholder) {
+  const sel=document.getElementById(id); if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML=`<option value="">${placeholder}</option>`+arr.map(v=>`<option value="${v}">${v}</option>`).join('');
+  if(cur) sel.value=cur;
+}
+ 
+// ══════════════════════════════════════════════════════
+// CONSOLIDADO TABLE
+// ══════════════════════════════════════════════════════
+function getFiltered(src) {
+  const rows = src || CON();
+  const q     = (document.getElementById('con-srch')||{value:''}).value.toLowerCase();
+  const dataF = (document.getElementById('con-data')||{value:''}).value;
+  const setF  = (document.getElementById('con-setor')||{value:''}).value;
+  const stF   = (document.getElementById('con-status')||{value:''}).value;
+  return rows.filter(r => {
+    if (q && !r.artigo.includes(q) && !r.descricao.toLowerCase().includes(q)) return false;
+    if (dataF && r.data !== dataF) return false;
+    if (setF && r.setor !== setF) return false;
+    if (stF && r.status !== stF) return false;
+    return true;
+  });
+}
+ 
+function renderCon() {
+  const conRows = CON(); if (!conRows.length) {
+    document.getElementById('con-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--muted)">Nenhum dado. Faça o upload e processe os relatórios.</td></tr>';
+    document.getElementById('con-tfoot').innerHTML = '';
+    return;
+  }
+  populateFilters();
+  const rows = getFiltered(conRows);
+  const cols = ['artigo','descricao','data','volRec','volProg','volExp','volPend','status','setor'];
+  rows.sort((a,b)=>{
+    const k=cols[conSort.col]; const av=a[k],bv=b[k];
+    if(typeof av==='number') return (av-bv)*conSort.dir;
+    return String(av).localeCompare(String(bv))*conSort.dir;
+  });
+ 
+  document.getElementById('con-cnt').textContent = `${rows.length} linhas`;
+  const tbody = document.getElementById('con-tbody');
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td style="font-weight:700">${r.artigo}</td>
+    <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis" title="${r.descricao}">${r.descricao}</td>
+    <td style="color:var(--blue)">${r.data}</td>
+    <td class="num" style="${r.volRec>0?'color:var(--blue)':'color:var(--muted2)'}">${r.volRec}</td>
+    <td class="num" style="${r.volProg>0?'color:var(--green);font-weight:700':'color:var(--muted2)'}">${r.volProg}</td>
+    <td class="num" style="${r.volExp>0?'color:var(--orange)':'color:var(--muted2)'}">${r.volExp}</td>
+    <td class="num" style="${r.volPend>0?'color:var(--red)':'color:var(--muted2)'}">${r.volPend}</td>
+    <td>${r.status&&r.status!=='—'?`<span class="bdg b-green">${r.status}</span>`:`<span class="bdg b-gray">—</span>`}</td>
+    <td>${r.setor?`<span class="bdg b-blue">${r.setor}</span>`:`<span class="bdg b-gray">—</span>`}</td>
+  </tr>`).join('');
+ 
+  const tot = k => rows.reduce((s,r)=>s+(r[k]||0),0);
+  document.getElementById('con-tfoot').innerHTML = `
+    <td colspan="3">TOTAL — ${rows.length} linhas</td>
+    <td class="num" style="color:var(--blue)">${tot('volRec')}</td>
+    <td class="num" style="color:var(--green)">${tot('volProg')}</td>
+    <td class="num" style="color:var(--orange)">${tot('volExp')}</td>
+    <td class="num" style="color:var(--red)">${tot('volPend')}</td>
+    <td colspan="2"></td>`;
+}
+ 
+function srtCon(col) {
+  if (conSort.col===col) conSort.dir*=-1; else { conSort.col=col; conSort.dir=1; }
+  renderCon();
+}
+ 
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+const chartBase = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{labels:{color:'#5a6480',font:{family:"'JetBrains Mono'",size:9},boxWidth:10,padding:12}},
+    tooltip:{backgroundColor:'#141820',borderColor:'#1f2535',borderWidth:1,titleColor:'#dde3f0',bodyColor:'#5a6480',titleFont:{family:"'JetBrains Mono'"},bodyFont:{family:"'JetBrains Mono'"}} },
+  scales:{
+    x:{ticks:{color:'#5a6480',font:{family:"'JetBrains Mono'",size:9}},grid:{color:'rgba(31,37,53,.5)'},border:{color:'#1f2535'}},
+    y:{ticks:{color:'#5a6480',font:{family:"'JetBrains Mono'",size:9}},grid:{color:'rgba(31,37,53,.5)'},border:{color:'#1f2535'}}
+  }
+};
+ 
+function renderDash() {
+  const allD = CON(); if (!allD.length) return;
+  populateFilters();
+  const dateF = document.getElementById('dash-data').value; const rows = dateF ? allD.filter(r=>r.data===dateF) : allD;
+ 
+  const tR = rows.reduce((s,r)=>s+r.volRec,0);
+  const tP = rows.reduce((s,r)=>s+r.volProg,0);
+  const tE = rows.reduce((s,r)=>s+r.volExp,0);
+  const tPend = rows.reduce((s,r)=>s+r.volPend,0);
+  const taxa = tP > 0 ? ((tE/tP)*100).toFixed(1)+'%' : '—';
+ 
+  document.getElementById('kv-r').textContent = tR.toLocaleString('pt-BR');
+  document.getElementById('kv-p').textContent = tP.toLocaleString('pt-BR');
+  document.getElementById('kv-e').textContent = tE.toLocaleString('pt-BR');
+  document.getElementById('kv-pend').textContent = tPend.toLocaleString('pt-BR');
+  document.getElementById('kv-t').textContent = taxa;
+  document.getElementById('ks-r').textContent = 'volumes recebidos';
+  document.getElementById('ks-p').textContent = 'volumes programados';
+  document.getElementById('ks-e').textContent = tP>0?`${((tE/tP)*100).toFixed(1)}% do programado`:'—';
+  document.getElementById('ks-pend').textContent = 'em pendência';
+  document.getElementById('ks-t').textContent = `${tE} / ${tP} vol.`;
+ 
+  const allDates = [...new Set(allD.map(r=>r.data))].sort();
+  const labels = allDates;
+  const arrR = allDates.map(d=>allD.filter(r=>r.data===d).reduce((s,r)=>s+r.volRec,0));
+  const arrP = allDates.map(d=>allD.filter(r=>r.data===d).reduce((s,r)=>s+r.volProg,0));
+  const arrE = allDates.map(d=>allD.filter(r=>r.data===d).reduce((s,r)=>s+r.volExp,0));
+ 
+  if (cVol) cVol.destroy();
+  if (cTend) cTend.destroy();
+  cVol = new Chart(document.getElementById('cVol'), { type:cType, data:{labels, datasets:[
+    {label:'Recebido', data:arrR, backgroundColor:'rgba(77,159,255,.65)', borderColor:'#4d9fff', borderWidth:2, tension:.4, fill:false},
+    {label:'Programado', data:arrP, backgroundColor:'rgba(62,207,114,.65)', borderColor:'#3ecf72', borderWidth:2, tension:.4, fill:false},
+    {label:'Expedido', data:arrE, backgroundColor:'rgba(240,168,64,.65)', borderColor:'#f0a840', borderWidth:2, tension:.4, fill:false},
+  ]}, options:{...chartBase}});
+  cTend = new Chart(document.getElementById('cTend'), { type:'line', data:{labels, datasets:[
+    {label:'Recebido', data:arrR, borderColor:'#4d9fff', backgroundColor:'rgba(77,159,255,.07)', borderWidth:2.5, pointRadius:4, tension:.4, fill:true},
+    {label:'Expedido', data:arrE, borderColor:'#f0a840', backgroundColor:'rgba(240,168,64,.04)', borderWidth:2.5, pointRadius:4, tension:.4, fill:false},
+  ]}, options:{...chartBase}});
+ 
+  // Artigos table
+  const artRows = Object.keys(ARTIGOS).map(art => {
+    const ar = rows.filter(r=>r.artigo===art);
+    return {
+      artigo: art, descricao: ARTIGOS[art],
+      volRec:  ar.reduce((s,r)=>s+r.volRec,0),
+      volProg: ar.reduce((s,r)=>s+r.volProg,0),
+      volExp:  ar.reduce((s,r)=>s+r.volExp,0),
+      volPend: ar.reduce((s,r)=>s+r.volPend,0),
+      status:  ar.length ? ar[ar.length-1].status : '—',
+      setor:   ar.length ? ar[ar.length-1].setor : '',
+    };
+  }).sort((a,b)=>b.volProg-a.volProg);
+ 
+  document.getElementById('dash-tbody').innerHTML = artRows.map(r=>`<tr>
+    <td style="font-weight:700">${r.artigo}</td>
+    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;font-size:10px" title="${r.descricao}">${r.descricao}</td>
+    <td class="num" style="${r.volRec>0?'color:var(--blue)':'color:var(--muted2)'}">${r.volRec}</td>
+    <td class="num" style="${r.volProg>0?'color:var(--green);font-weight:700':'color:var(--muted2)'}">${r.volProg}</td>
+    <td class="num" style="${r.volExp>0?'color:var(--orange)':'color:var(--muted2)'}">${r.volExp}</td>
+    <td class="num" style="${r.volPend>0?'color:var(--red)':'color:var(--muted2)'}">${r.volPend}</td>
+    <td>${r.status&&r.status!=='—'?`<span class="bdg b-green">${r.status}</span>`:`<span class="bdg b-gray">—</span>`}</td>
+    <td>${r.setor?`<span class="bdg b-blue">${r.setor}</span>`:`<span class="bdg b-gray">—</span>`}</td>
+  </tr>`).join('');
+ 
+  const tot = k => artRows.reduce((s,r)=>s+(r[k]||0),0);
+  document.getElementById('dash-tfoot').innerHTML = `<td colspan="2">TOTAL</td>
+    <td class="num" style="color:var(--blue)">${tot('volRec')}</td>
+    <td class="num" style="color:var(--green)">${tot('volProg')}</td>
+    <td class="num" style="color:var(--orange)">${tot('volExp')}</td>
+    <td class="num" style="color:var(--red)">${tot('volPend')}</td>
+    <td colspan="2"></td>`;
+}
+ 
+function setCT(el, t) {
+  document.querySelectorAll('[data-ct]').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on'); cType=t; renderDash();
+}
+ 
+// ══════════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════════
+function getExportRows() {
+  const rows = getFiltered(conRows);
+  const header = ['Artigo Atual','Descrição','Data','Vol Recebido','Vol Programado','Vol Expedido','Vol Pendência','Status','Setor Estoque'];
+  const data = rows.map(r=>[r.artigo,r.descricao,r.data,r.volRec,r.volProg,r.volExp,r.volPend,r.status,r.setor]);
+  return { header, data };
+}
+ 
+function exportCSV() {
+  const { header, data } = getExportRows();
+  if (!data.length) { toast('Sem dados — processe os relatórios primeiro.','err'); return; }
+  const content = [header,...data].map(r=>r.map(v=>typeof v==='string'&&v.includes(',')?`"${v}"`:v).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='relatorio_consolidado.csv'; a.click();
+  toast('CSV exportado.','ok');
+}
+ 
+function exportXLSX() {
+  const expAll = CON(); if (!expAll.length) { toast('Sem dados.','err'); return; }
+  const wb = XLSX.utils.book_new();
+ 
+  // Aba 1: estrutura exata da imagem (com filtros aplicados)
+  const { header, data } = getExportRows();
+  const ws1 = XLSX.utils.aoa_to_sheet([header,...data]);
+  ws1['!cols'] = [{wch:12},{wch:58},{wch:8},{wch:13},{wch:15},{wch:13},{wch:14},{wch:10},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Consolidado');
+ 
+  // Aba 2: Resumo por Artigo
+  const ah = ['Artigo Atual','Descrição','Vol Rec Total','Vol Prog Total','Vol Exp Total','Vol Pend Total','Taxa Exp %','Status','Setor Estoque'];
+  const ad = Object.keys(ARTIGOS).map(art => {
+    const ar = expAll.filter(r=>r.artigo===art);
+    const vR=ar.reduce((s,r)=>s+r.volRec,0), vP=ar.reduce((s,r)=>s+r.volProg,0),
+          vE=ar.reduce((s,r)=>s+r.volExp,0), vPend=ar.reduce((s,r)=>s+r.volPend,0);
+    const st = ar.length ? ar[ar.length-1].status : '—';
+    const se = ar.length ? ar[ar.length-1].setor : '';
+    return [art,ARTIGOS[art],vR,vP,vE,vPend,vP>0?+((vE/vP)*100).toFixed(1):0,st,se];
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet([ah,...ad]);
+  ws2['!cols'] = [{wch:12},{wch:58},{wch:12},{wch:14},{wch:12},{wch:13},{wch:10},{wch:10},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumo por Artigo');
+ 
+  // Aba 3: Resumo por Data
+  const dates = [...new Set(expAll.map(r=>r.data))].sort();
+  const dh = ['Data','Vol Recebido','Vol Programado','Vol Expedido','Vol Pendência','Taxa Exp %'];
+  const dd = dates.map(d => {
+    const dr=expAll.filter(r=>r.data===d);
+    const vR=dr.reduce((s,r)=>s+r.volRec,0), vP=dr.reduce((s,r)=>s+r.volProg,0),
+          vE=dr.reduce((s,r)=>s+r.volExp,0), vPend=dr.reduce((s,r)=>s+r.volPend,0);
+    return [d,vR,vP,vE,vPend,vP>0?+((vE/vP)*100).toFixed(1):0];
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet([dh,...dd]);
+  ws3['!cols'] = Array(6).fill({wch:14});
+  XLSX.utils.book_append_sheet(wb, ws3, 'Resumo por Data');
+ 
+  XLSX.writeFile(wb, 'relatorio_rpe.xlsx');
+  toast('Excel exportado — 3 abas.','ok');
+}
+ 
+// ══════════════════════════════════════════════════════
+// MISC
+// ══════════════════════════════════════════════════════
+function toast(msg, type='ok') {
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div'); t.className=`toast ${type}`;
+  t.innerHTML=`<span>${{ok:'✓',err:'✗',info:'ℹ'}[type]}</span><span>${msg}</span>`;
+  c.appendChild(t); setTimeout(()=>t.remove(),3500);
+}
+ 
+function clearHist() {
+  const n = Object.keys(HIST).length;
+  if (!n) { toast('Histórico já está vazio.','info'); return; }
+  if (!confirm(`Limpar histórico de ${n} datas? Os arquivos carregados permanecem.`)) return;
+  HIST = {}; save(); renderSlots();
+  document.getElementById('cnt-rows').textContent = '—';
+  toast(`Histórico de ${n} datas removido.`, 'info');
+}
+ 
+function clearAll() {
+  if (!confirm('Limpar todos os dados?')) return;
+  RAW={}; HIST={}; save(); renderSlots();
+  document.getElementById('cnt-rows').textContent='—';
+  toast('Dados limpos.','info');
+}
+ 
+// INIT
+load();
+renderSlots();
+if (CON().length) populateFilters();
+</script>
+</body>
+</html>
+ 
