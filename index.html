@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RPE · Dashboard</title>
-<script src="https://cdnjs.cloudaaflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -355,8 +355,11 @@ function go(p) {
   document.querySelectorAll('.ntab').forEach(e=>e.classList.remove('on'));
   document.getElementById('page-'+p).classList.add('on');
   document.querySelectorAll('.ntab')[{upload:0,consolidado:1,dashboard:2}[p]].classList.add('on');
-  if(p==='consolidado') renderCon();
-  if(p==='dashboard') renderDash();
+  if (p==='consolidado') renderCon();
+  if (p==='dashboard') {
+    // Aguarda o DOM renderizar antes de criar os charts
+    requestAnimationFrame(() => setTimeout(renderDash, 50));
+  }
 }
  
 // ══════════════════════════════════════════════════════
@@ -849,7 +852,7 @@ function renderCon() {
     return;
   }
   populateFilters();
-  const rows = getFiltered(conRows);
+  const rows = getFiltered();
   const cols = ['artigo','descricao','data','volRec','volProg','volExp','volPend','status','setor'];
   rows.sort((a,b)=>{
     const k=cols[conSort.col]; const av=a[k],bv=b[k];
@@ -927,17 +930,35 @@ function renderDash() {
   const arrP = allDates.map(d=>allD.filter(r=>r.data===d).reduce((s,r)=>s+r.volProg,0));
   const arrE = allDates.map(d=>allD.filter(r=>r.data===d).reduce((s,r)=>s+r.volExp,0));
  
-  if (cVol) cVol.destroy();
-  if (cTend) cTend.destroy();
-  cVol = new Chart(document.getElementById('cVol'), { type:cType, data:{labels, datasets:[
-    {label:'Recebido', data:arrR, backgroundColor:'rgba(77,159,255,.65)', borderColor:'#4d9fff', borderWidth:2, tension:.4, fill:false},
-    {label:'Programado', data:arrP, backgroundColor:'rgba(62,207,114,.65)', borderColor:'#3ecf72', borderWidth:2, tension:.4, fill:false},
-    {label:'Expedido', data:arrE, backgroundColor:'rgba(240,168,64,.65)', borderColor:'#f0a840', borderWidth:2, tension:.4, fill:false},
-  ]}, options:{...chartBase}});
-  cTend = new Chart(document.getElementById('cTend'), { type:'line', data:{labels, datasets:[
-    {label:'Recebido', data:arrR, borderColor:'#4d9fff', backgroundColor:'rgba(77,159,255,.07)', borderWidth:2.5, pointRadius:4, tension:.4, fill:true},
-    {label:'Expedido', data:arrE, borderColor:'#f0a840', backgroundColor:'rgba(240,168,64,.04)', borderWidth:2.5, pointRadius:4, tension:.4, fill:false},
-  ]}, options:{...chartBase}});
+  // Destruir instâncias anteriores e recriar canvas para evitar estado corrompido
+  if (cVol) { cVol.destroy(); cVol = null; }
+  if (cTend) { cTend.destroy(); cTend = null; }
+ 
+  // Recriar canvas do zero para garantir renderização limpa
+  function freshCanvas(id) {
+    const box = document.getElementById(id).parentNode;
+    const old = document.getElementById(id);
+    if (old) old.remove();
+    const c = document.createElement('canvas');
+    c.id = id;
+    box.appendChild(c);
+    return c;
+  }
+ 
+  try {
+    cVol = new Chart(freshCanvas('cVol'), { type:cType, data:{labels, datasets:[
+      {label:'Recebido',   data:arrR, backgroundColor:'rgba(77,159,255,.65)',  borderColor:'#4d9fff', borderWidth:2, tension:.4, fill:false},
+      {label:'Programado', data:arrP, backgroundColor:'rgba(62,207,114,.65)',  borderColor:'#3ecf72', borderWidth:2, tension:.4, fill:false},
+      {label:'Expedido',   data:arrE, backgroundColor:'rgba(240,168,64,.65)',  borderColor:'#f0a840', borderWidth:2, tension:.4, fill:false},
+    ]}, options:{...chartBase}});
+  } catch(e) { console.error('cVol error:', e); }
+ 
+  try {
+    cTend = new Chart(freshCanvas('cTend'), { type:'line', data:{labels, datasets:[
+      {label:'Recebido', data:arrR, borderColor:'#4d9fff', backgroundColor:'rgba(77,159,255,.07)', borderWidth:2.5, pointRadius:4, tension:.4, fill:true},
+      {label:'Expedido', data:arrE, borderColor:'#f0a840', backgroundColor:'rgba(240,168,64,.04)', borderWidth:2.5, pointRadius:4, tension:.4, fill:false},
+    ]}, options:{...chartBase}});
+  } catch(e) { console.error('cTend error:', e); }
  
   // Artigos table
   const artRows = Object.keys(ARTIGOS).map(art => {
@@ -982,7 +1003,7 @@ function setCT(el, t) {
 // EXPORT
 // ══════════════════════════════════════════════════════
 function getExportRows() {
-  const rows = getFiltered(conRows);
+  const rows = getFiltered();
   const header = ['Artigo Atual','Descrição','Data','Vol Recebido','Vol Programado','Vol Expedido','Vol Pendência','Status','Setor Estoque'];
   const data = rows.map(r=>[r.artigo,r.descricao,r.data,r.volRec,r.volProg,r.volExp,r.volPend,r.status,r.setor]);
   return { header, data };
