@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RPE · Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script acsrc="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudaaflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -465,22 +465,76 @@ function store(slotId, filename, data, cols) {
 // 6 primeiros dígitos numéricos
 function norm6(v) {
   if (v == null) return '';
-  return String(v).replace(/\D/g, '').substring(0, 6);
+  let s = String(v).trim();
+ 
+  // Notação científica: 4,03627E+11 | 4.03627E+11 | 4.03627e+11
+  // Converter para número real primeiro
+  if (/^[\d.,]+[eE][+\-]?\d+$/.test(s)) {
+    // Normaliza separador decimal (vírgula → ponto)
+    s = s.replace(',', '.');
+    try {
+      // Usar BigInt via string para não perder dígitos
+      const n = parseFloat(s);
+      if (!isNaN(n) && isFinite(n)) {
+        // Converter para inteiro sem notação científica
+        s = Math.round(n).toLocaleString('fullwide', {useGrouping: false});
+        // fallback se toLocaleString não funcionar
+        if (s.includes('e') || s.includes('E')) {
+          s = n.toFixed(0);
+        }
+      }
+    } catch(e) {}
+  }
+ 
+  // Remove tudo que não é dígito e pega os 6 primeiros
+  return s.replace(/\D/g, '').substring(0, 6);
 }
  
-// busca coluna case-insensitive
+// busca coluna case-insensitive com normalização agressiva
+function norm_col(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove acentos
+    .replace(/[^a-z0-9]/g,' ')                         // não-alfanum → espaço
+    .replace(/\s+/g,' ').trim();
+}
 function findCol(cols, target) {
   if (!cols || !target) return null;
-  const t = target.toLowerCase().replace(/[_\s]/g,' ').trim();
-  return cols.find(c => c.toLowerCase().replace(/[_\s]/g,' ').trim() === t)
-    || cols.find(c => c.toLowerCase().replace(/[_\s]/g,' ').includes(t))
-    || cols.find(c => t.includes(c.toLowerCase().replace(/[_\s]/g,' ').trim()))
-    || null;
+  const t = norm_col(target);
+  // 1. Match exato
+  let found = cols.find(c => norm_col(c) === t);
+  if (found) return found;
+  // 2. Coluna contém o target
+  found = cols.find(c => norm_col(c).includes(t));
+  if (found) return found;
+  // 3. Target contém a coluna (para colunas com nome curto)
+  found = cols.find(c => { const nc = norm_col(c); return nc.length > 2 && t.includes(nc); });
+  if (found) return found;
+  // 4. Match por palavras-chave individuais (ex: "REC VOL" match "REC_VOL_TOTAL")
+  const words = t.split(' ').filter(w => w.length > 2);
+  if (words.length > 1) {
+    found = cols.find(c => words.every(w => norm_col(c).includes(w)));
+    if (found) return found;
+  }
+  return null;
 }
  
 function parseNum(v) {
   if (v == null || v === '') return 0;
-  const n = parseFloat(String(v).replace(/[^\d.\-]/g,''));
+  let s = String(v).trim();
+  // Notação científica: converter antes
+  if (/^[\d.,]+[eE][+\-]?\d+$/.test(s)) {
+    s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : Math.round(n);
+  }
+  // Separador BR: 1.234,56 → 1234.56
+  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
+    s = s.replace(/\./g,'').replace(',','.');
+  } else {
+    // Remove tudo exceto dígitos, ponto e sinal
+    s = s.replace(/[^\d.\-]/g,'');
+  }
+  const n = parseFloat(s);
   return isNaN(n) ? 0 : Math.round(n);
 }
  
@@ -574,7 +628,7 @@ function processAll() {
     if (recRaw) {
       const cols = recRaw.cols;
       const cItem = findCol(cols,'ITEM') || findCol(cols,'ITEM_ID');
-      const cVol  = findCol(cols,'REC_VOLUMES') || findCol(cols,'VOLUMES') || findCol(cols,'VOL');
+      const cVol  = findCol(cols,'REC_VOL') || findCol(cols,'REC_VOLUMES') || findCol(cols,'AG_VOL') || findCol(cols,'VOLUMES') || findCol(cols,'VOL');
       const cData = findCol(cols,'DATA') || findCol(cols,'DATE');
       recRaw.data.forEach(r => {
         const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
@@ -629,7 +683,7 @@ function processAll() {
     if (pendRaw) {
       const cols = pendRaw.cols;
       const cItem   = findCol(cols,'ITEM') || findCol(cols,'ITEM_ID');
-      const cVol    = findCol(cols,'QTD_VOLUMES') || findCol(cols,'VOLUMES') || findCol(cols,'QTD');
+      const cVol    = findCol(cols,'QTD_VOL') || findCol(cols,'QTD_VOLUMES') || findCol(cols,'QTD VOLUMES') || findCol(cols,'VOLUMES') || findCol(cols,'QTD');
       const cStatus = findCol(cols,'STATUS');
       pendRaw.data.forEach(r => {
         const art = norm6(r[cItem]); if (!ARTIGOS[art]) return;
@@ -699,7 +753,41 @@ function processAll() {
     populateFilters();
  
     const isNew = [...newDates].filter(d => !Object.keys(HIST).includes(d) || true);
-    toast(`+${newDates.size} datas processadas · Histórico: ${allHistDates} datas · ${allRows.length} linhas totais`, 'ok');
+    // Diagnóstico de colunas detectadas
+    const diagLines = [];
+    const recRawD = RAW['recebimento'];
+    if (recRawD) {
+      const cc = recRawD.cols;
+      const ci = findCol(cc,'ITEM') || findCol(cc,'ITEM_ID') || '❌ não encontrado';
+      const cv = findCol(cc,'REC_VOL') || findCol(cc,'REC_VOLUMES') || findCol(cc,'AG_VOL') || findCol(cc,'VOLUMES') || '❌ não encontrado';
+      const cd = findCol(cc,'DATA') || findCol(cc,'DATE') || '❌ não encontrado';
+      diagLines.push(`Recebimento → ITEM:${ci} | VOL:${cv} | DATA:${cd}`);
+    }
+    const pendRawD = RAW['pendencia'];
+    if (pendRawD) {
+      const cc = pendRawD.cols;
+      const ci = findCol(cc,'ITEM') || findCol(cc,'ITEM_ID') || '❌ não encontrado';
+      const cv = findCol(cc,'QTD_VOL') || findCol(cc,'QTD_VOLUMES') || findCol(cc,'VOLUMES') || '❌ não encontrado';
+      const cs = findCol(cc,'STATUS') || '❌ não encontrado';
+      diagLines.push(`Pendência → ITEM:${ci} | VOL:${cv} | STATUS:${cs}`);
+    }
+    const estRawD = RAW['estoque'];
+    if (estRawD) {
+      const cc = estRawD.cols;
+      const ci = findCol(cc,'ITEM_ID') || findCol(cc,'ITEM') || '❌ não encontrado';
+      const cl = findCol(cc,'CLASSE') || findCol(cc,'CLASS') || '❌ não encontrado';
+      diagLines.push(`Estoque → ITEM_ID:${ci} | CLASSE:${cl}`);
+    }
+    console.log('=== DIAGNÓSTICO DE COLUNAS ===');
+    diagLines.forEach(l => console.log(l));
+    console.log('==============================');
+ 
+    toast(`+${newDates.size} datas · Histórico: ${allHistDates} datas · ${allRows.length} linhas totais`, 'ok');
+    // Toast secundário com diagnóstico
+    setTimeout(() => {
+      const erros = diagLines.filter(l => l.includes('❌'));
+      if (erros.length) toast(`⚠ ${erros.length} coluna(s) não mapeada(s) — veja o console (F12)`, 'err');
+    }, 500);
     setTimeout(() => { pw.style.display='none'; setPbar(0); go('consolidado'); }, 700);
  
   } catch(err) {
