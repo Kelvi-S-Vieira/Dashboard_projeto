@@ -209,7 +209,7 @@ table.dt tfoot td{background:var(--s2);font-weight:700;border-top:1px solid var(
           <th class="num" onclick="srtCon(3)">Vol Recebido ↕</th>
           <th class="num" onclick="srtCon(4)">Vol Programado ↕</th>
           <th class="num" onclick="srtCon(5)">Vol Expedido ↕</th>
-          <th class="num" onclick="srtCon(6)">Vol Pendência ↕</th>
+          <th class="num" onclick="srtCon(6)">Vol em Separação ↕</th>
           <th onclick="srtCon(7)">Status ↕</th>
           <th onclick="srtCon(8)">Setor Estoque ↕</th>
         </tr></thead>
@@ -258,7 +258,7 @@ table.dt tfoot td{background:var(--s2);font-weight:700;border-top:1px solid var(
           <th class="num">Vol Recebido</th>
           <th class="num">Vol Programado</th>
           <th class="num">Vol Expedido</th>
-          <th class="num">Vol Pendência</th>
+          <th class="num">Vol em Separação</th>
           <th>Status</th><th>Setor Estoque</th>
         </tr></thead>
         <tbody id="dash-tbody"></tbody>
@@ -921,7 +921,7 @@ function renderDash() {
   document.getElementById('ks-r').textContent = 'volumes recebidos';
   document.getElementById('ks-p').textContent = 'volumes programados';
   document.getElementById('ks-e').textContent = tP>0?`${((tE/tP)*100).toFixed(1)}% do programado`:'—';
-  document.getElementById('ks-pend').textContent = 'em pendência';
+  document.getElementById('ks-pend').textContent = 'em separação';
   document.getElementById('ks-t').textContent = `${tE} / ${tP} vol.`;
  
   const allDates = [...new Set(allD.map(r=>r.data))].sort();
@@ -1004,7 +1004,7 @@ function setCT(el, t) {
 // ══════════════════════════════════════════════════════
 function getExportRows() {
   const rows = getFiltered();
-  const header = ['Artigo Atual','Descrição','Data','Vol Recebido','Vol Programado','Vol Expedido','Vol Pendência','Status','Setor Estoque'];
+  const header = ['Artigo Atual','Descrição','Data','Vol Recebido','Vol Programado','Vol Expedido','Vol em Separação','Status','Setor Estoque'];
   const data = rows.map(r=>[r.artigo,r.descricao,r.data,r.volRec,r.volProg,r.volExp,r.volPend,r.status,r.setor]);
   return { header, data };
 }
@@ -1044,7 +1044,7 @@ function exportXLSX() {
  
   // Aba 3: Resumo por Data
   const dates = [...new Set(expAll.map(r=>r.data))].sort();
-  const dh = ['Data','Vol Recebido','Vol Programado','Vol Expedido','Vol Pendência','Taxa Exp %'];
+  const dh = ['Data','Vol Recebido','Vol Programado','Vol Expedido','Vol em Separação','Taxa Exp %'];
   const dd = dates.map(d => {
     const dr=expAll.filter(r=>r.data===d);
     const vR=dr.reduce((s,r)=>s+r.volRec,0), vP=dr.reduce((s,r)=>s+r.volProg,0),
